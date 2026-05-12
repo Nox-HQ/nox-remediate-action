@@ -78,7 +78,10 @@ runs:
   using: 'composite'
   steps:
     - name: Install Nox
-      uses: nox-hq/nox@v1
+      # Pin to a released nox version. nox-hq/nox has no v1 alias tag
+      # (latest is v0.10.0); referencing a non-existent ref breaks the
+      # composite resolver across every consumer of this action.
+      uses: nox-hq/nox@v0.10.0
       with:
         path: ${{ inputs.path }}
         format: ${{ inputs.scan-format }}
