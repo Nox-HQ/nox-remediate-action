@@ -58,6 +58,14 @@ inputs:
     description: 'Scan output directory'
     required: false
     default: 'nox-out'
+  upgrade-actions:
+    description: >-
+      Also upgrade GitHub Action pins in .github/workflows to their latest
+      release, SHA-pinned. Off by default: enabling it widens what the action
+      rewrites, and a consumer upgrading this action should not silently gain
+      commits to their workflow files.
+    required: false
+    default: 'false'
   github-token:
     description: 'Token used to create the pull request (defaults to GITHUB_TOKEN)'
     required: false
@@ -96,6 +104,10 @@ runs:
         INPUT_OUTPUT: ${{ inputs.scan-output }}
         INPUT_INCLUDE_MAJOR: ${{ inputs.include-major }}
         INPUT_MANIFEST_ROOT: ${{ inputs.manifest-root }}
+        INPUT_UPGRADE_ACTIONS: ${{ inputs.upgrade-actions }}
+        # `nox fix --actions` resolves each action's latest release through the
+        # GitHub API; without a token it is rate-limited to 60 requests/hour.
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: bash "${{ github.action_path }}/remediate.sh" plan
 
     - name: Apply remediation
@@ -105,6 +117,10 @@ runs:
         INPUT_OUTPUT: ${{ inputs.scan-output }}
         INPUT_INCLUDE_MAJOR: ${{ inputs.include-major }}
         INPUT_MANIFEST_ROOT: ${{ inputs.manifest-root }}
+        INPUT_UPGRADE_ACTIONS: ${{ inputs.upgrade-actions }}
+        # `nox fix --actions` resolves each action's latest release through the
+        # GitHub API; without a token it is rate-limited to 60 requests/hour.
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: bash "${{ github.action_path }}/remediate.sh" apply
 
     - name: Verify changes
