@@ -1,0 +1,122 @@
+name: sync
+
+# Publishes Nox-HQ/nox's actions/remediate here after every nox release, the
+# way nox's own release moves nox-hq/nox@v1. That directory is the source;
+# this repository is the Marketplace copy and is never edited by hand.
+#
+# For nox release vX.Y.Z it copies action.yml, remediate.sh and README.md at
+# that release's commit, pins the install action to the same commit, runs the
+# self-test against the result, and only then commits, tags vX.Y.Z, creates
+# the release and moves v1.
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      nox_tag:
+        description: 'nox release to publish (default: the latest)'
+        required: false
+      dry_run:
+        description: 'Copy and self-test only; publish nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the nox release
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WANT: ${{ inputs.nox_tag }}
+        run: |
+          set -euo pipefail
+          tag="${WANT:-$(gh release view --repo Nox-HQ/nox --json tagName -q .tagName)}"
+          if [[ ! "$tag" =~ ^v1\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::unexpected nox tag '$tag'"
+            exit 1
+          fi
+          newest=$(git tag -l 'v1.*.*' --sort=-v:refname | head -n1)
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag is already published"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -n "$newest" && "$(printf '%s\n%s\n' "$newest" "$tag" | sort -V | tail -n1)" != "$tag" ]]; then
+            echo "$tag is older than the newest published $newest"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sha=$(gh api "repos/Nox-HQ/nox/commits/$tag" -q .sha)
+          {
+            echo "skip=false"
+            echo "tag=$tag"
+            echo "sha=$sha"
+            echo "version=${tag#v}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Copy the action from that release
+        if: steps.rel.outputs.skip == 'false'
+        env:
+          TAG: ${{ steps.rel.outputs.tag }}
+          SHA: ${{ steps.rel.outputs.sha }}
+        run: |
+          set -euo pipefail
+          for f in action.yml remediate.sh README.md; do
+            curl -fsSL "https://raw.githubusercontent.com/Nox-HQ/nox/$SHA/actions/remediate/$f" -o "$f"
+          done
+          # The install action is the one from the release being published.
+          sed -E -i "s|uses: nox-hq/nox@[0-9a-f]{40} # v[0-9.]+|uses: nox-hq/nox@$SHA # $TAG|" action.yml
+          if ! grep -q "uses: nox-hq/nox@$SHA # $TAG" action.yml; then
+            echo "::error::the nox-hq/nox install pin was not found in action.yml"
+            exit 1
+          fi
+          git diff --stat
+
+      - id: remediate
+        if: steps.rel.outputs.skip == 'false'
+        uses: ./
+        with:
+          path: testdata/fixture
+          manifest-root: testdata/fixture
+          upgrade-actions: 'true'
+          apply: 'false'
+          open-pr: 'false'
+          version: ${{ steps.rel.outputs.version }}
+
+      - name: Check the plan
+        if: steps.rel.outputs.skip == 'false'
+        env:
+          HAS_UPDATES: ${{ steps.remediate.outputs.has-updates }}
+          PLAN: ${{ steps.remediate.outputs.plan-file }}
+        run: testdata/check-plan.sh
+
+      - name: Publish
+        if: steps.rel.outputs.skip == 'false' && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.rel.outputs.tag }}
+          SHA: ${{ steps.rel.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add action.yml remediate.sh README.md
+          git diff --cached --quiet || git commit -m "sync: actions/remediate from nox $TAG" -m "Source: https://github.com/Nox-HQ/nox/tree/$SHA/actions/remediate"
+          git tag -a "$TAG" -m "nox-remediate-action $TAG (Nox-HQ/nox@$SHA)"
+          git push origin HEAD:main "refs/tags/$TAG"
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes "\`actions/remediate\` from [nox $TAG](https://github.com/Nox-HQ/nox/releases/tag/$TAG), installing nox through \`nox-hq/nox@$SHA\`. Changes are in the [nox changelog](https://github.com/Nox-HQ/nox/blob/$TAG/CHANGELOG.md)."
+          git tag -fa v1 -m "v1 -> $TAG"
+          git push origin v1 --force

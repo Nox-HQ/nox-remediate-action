@@ -1,0 +1,33 @@
+name: self-test
+
+# Runs this action against testdata/fixture without applying anything or
+# opening a pull request. The sync workflow runs the same check before it
+# publishes a release.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: remediate
+        uses: ./
+        with:
+          path: testdata/fixture
+          manifest-root: testdata/fixture
+          upgrade-actions: 'true'
+          apply: 'false'
+          open-pr: 'false'
+
+      - name: Check the plan
+        env:
+          HAS_UPDATES: ${{ steps.remediate.outputs.has-updates }}
+          PLAN: ${{ steps.remediate.outputs.plan-file }}
+        run: testdata/check-plan.sh
