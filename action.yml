@@ -66,6 +66,10 @@ inputs:
       commits to their workflow files.
     required: false
     default: 'false'
+  findings-file:
+    description: 'Plan from this findings.json instead of the one the scan above writes. `nox advisories --prepare-findings` writes the file holding only the newly disclosed advisories its policy decided to fix.'
+    required: false
+    default: ''
   github-token:
     description: 'Token used to create the pull request (defaults to GITHUB_TOKEN)'
     required: false
@@ -86,10 +90,10 @@ runs:
   using: 'composite'
   steps:
     - name: Install Nox
-      # Pinned by commit, to nox v1.38.2. The previous pin was the mutable tag
-      # v0.10.0, from May 2026, chosen when nox-hq/nox had no v1 alias; every
-      # consumer of this action has been running that release's action code.
-      uses: nox-hq/nox@f345910099d0d7404f15fb4a55a8a826af6f824e # v1.38.2
+      # Pinned by commit SHA, not the floating @v1 tag: IAC-013 is nox's own
+      # rule, and an action that remediates supply-chain risk must not itself
+      # consume a mutable ref.
+      uses: nox-hq/nox@49d67c3d69c5302b1ed9e71dd12dc3470764fcbb # v1.55.1
       with:
         path: ${{ inputs.path }}
         format: ${{ inputs.scan-format }}
@@ -105,6 +109,7 @@ runs:
         INPUT_INCLUDE_MAJOR: ${{ inputs.include-major }}
         INPUT_MANIFEST_ROOT: ${{ inputs.manifest-root }}
         INPUT_UPGRADE_ACTIONS: ${{ inputs.upgrade-actions }}
+        INPUT_FINDINGS_FILE: ${{ inputs.findings-file }}
         # `nox fix --actions` resolves each action's latest release through the
         # GitHub API; without a token it is rate-limited to 60 requests/hour.
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -118,6 +123,7 @@ runs:
         INPUT_INCLUDE_MAJOR: ${{ inputs.include-major }}
         INPUT_MANIFEST_ROOT: ${{ inputs.manifest-root }}
         INPUT_UPGRADE_ACTIONS: ${{ inputs.upgrade-actions }}
+        INPUT_FINDINGS_FILE: ${{ inputs.findings-file }}
         # `nox fix --actions` resolves each action's latest release through the
         # GitHub API; without a token it is rate-limited to 60 requests/hour.
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -155,7 +161,7 @@ runs:
     - name: Open pull request
       id: pr
       if: steps.plan.outputs.has-updates == 'true' && inputs.apply == 'true' && inputs.open-pr == 'true'
-      uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7
+      uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
       with:
         token: ${{ inputs.github-token }}
         branch: ${{ inputs.pr-branch-prefix }}/${{ github.run_id }}
@@ -180,7 +186,7 @@ runs:
 
     - name: Upload remediation plan
       if: always()
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: nox-remediation-plan
         path: ${{ inputs.scan-output }}/remediation-plan.txt
