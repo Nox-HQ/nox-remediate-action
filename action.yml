@@ -93,7 +93,7 @@ runs:
       # Pinned by commit SHA, not the floating @v1 tag: IAC-013 is nox's own
       # rule, and an action that remediates supply-chain risk must not itself
       # consume a mutable ref.
-      uses: nox-hq/nox@af385fdcf2dfe04b020a62a441eb9239855a8ff2 # v1.55.8
+      uses: nox-hq/nox@b5add438616c3ad166dff0b0558136f2222c401a # v1.55.9
       with:
         path: ${{ inputs.path }}
         format: ${{ inputs.scan-format }}
