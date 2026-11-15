@@ -11,7 +11,7 @@ name: sync
 on:
   schedule:
     - cron: '23 */6 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # nox:ignore IAC-308,IAC-155 -- publishes a chosen nox release on demand; dry_run exists for exactly this
     inputs:
       nox_tag:
         description: 'nox release to publish (default: the latest)'
@@ -22,7 +22,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: write # nox:ignore IAC-314 -- commits the synced copy, tags the release and moves v1
 
 concurrency:
   group: sync
