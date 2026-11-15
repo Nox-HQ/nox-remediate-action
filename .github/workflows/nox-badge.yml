@@ -1,0 +1,21 @@
+name: Security badge
+
+# Thin caller for the org-wide reusable workflow in Nox-HQ/.github: scans the
+# default branch with the org-pinned nox and commits the grade to
+# .github/nox-badge.svg. The README is synced from nox's actions/remediate,
+# which shows the badge by its absolute URL.
+on:
+  schedule:
+    - cron: '12 6 * * 1' # Mondays, staggered across the org's repositories
+  release:
+    types: [published]
+  workflow_dispatch: {} # nox:ignore IAC-308,IAC-155 -- re-grades on demand; it opens a PR, which is where review happens
+
+permissions:
+  contents: write # nox:ignore IAC-314 -- pushes the badge branch
+  pull-requests: write
+
+jobs:
+  badge:
+    uses: Nox-HQ/.github/.github/workflows/nox-badge.yml@main
+    secrets: inherit

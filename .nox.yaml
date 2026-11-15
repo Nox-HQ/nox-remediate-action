@@ -1,0 +1,8 @@
+scan:
+  exclude:
+    # The self-test fixture: a Go module pinned to a vulnerable golang.org/x/net
+    # on purpose, so the action has an upgrade to plan. Vulnerable by design.
+    - "testdata/"
+    # A workflow for users to copy into their own repository. It never runs
+    # here, and in the copying repository nox grades it as that repository's.
+    - "example/"
